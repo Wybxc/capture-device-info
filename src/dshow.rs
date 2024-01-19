@@ -11,7 +11,7 @@ use windows::Win32::Media::DirectShow::*;
 use windows::Win32::Media::MediaFoundation::*;
 use windows::Win32::System::Com::StructuredStorage::*;
 use windows::Win32::System::Com::*;
-use windows::Win32::System::Ole::*;
+use windows::Win32::System::Variant::*;
 
 use crate::{CaptureDeviceInfo, CaptureDevicePosition, CaptureDeviceResolution};
 
@@ -52,11 +52,8 @@ impl MonikerIterator {
     pub fn enumerate_devices() -> Result<Self> {
         let enum_moniker = unsafe {
             let mut enum_moniker = None;
-            let dev_enum: ICreateDevEnum = CoCreateInstance(
-                &CLSID_SystemDeviceEnum,
-                InParam::null(),
-                CLSCTX_INPROC_SERVER,
-            )?;
+            let dev_enum: ICreateDevEnum =
+                CoCreateInstance(&CLSID_SystemDeviceEnum, None, CLSCTX_INPROC_SERVER)?;
             dev_enum.CreateClassEnumerator(
                 &CLSID_VideoInputDeviceCategory,
                 &mut enum_moniker,
@@ -93,8 +90,8 @@ impl PinIterator {
         let enum_pins = unsafe {
             let mut filter = None;
             moniker.BindToObject(
-                InParam::null(),
-                InParam::null(),
+                None,
+                None,
                 &IBaseFilter::IID,
                 &mut filter as *mut _ as *mut _,
             )?;
@@ -245,25 +242,22 @@ pub fn capture_devices() -> Result<impl Iterator<Item = DirectShowCaptureDevice>
             let mut prop_bag: Option<IPropertyBag> = None;
             unsafe {
                 moniker.BindToStorage(
-                    InParam::null(),
-                    InParam::null(),
+                    None,
+                    None,
                     &IPropertyBag::IID,
                     &mut prop_bag as *mut _ as *mut _,
                 )?;
             }
             let prop_bag = prop_bag.unwrap();
 
-            // initialize variant
-            let mut variant = Default::default();
-
             // get description from "Description" or "FriendlyName"
             let description = unsafe {
-                VariantInit(&mut variant);
+                let mut variant = VariantInit();
                 if prop_bag
-                    .Read(&"Description".into(), &mut variant, InParam::null())
+                    .Read(&"Description".into(), &mut variant, None)
                     .is_err()
                 {
-                    prop_bag.Read(&"FriendlyName".into(), &mut variant, InParam::null())?;
+                    prop_bag.Read(&"FriendlyName".into(), &mut variant, None)?;
                 }
                 // see: https://github.com/microsoft/windows-rs/issues/539
                 let desc = variant.Anonymous.Anonymous.Anonymous.bstrVal.to_string();
@@ -273,9 +267,9 @@ pub fn capture_devices() -> Result<impl Iterator<Item = DirectShowCaptureDevice>
 
             // get device path from "DevicePath"
             let device_path = unsafe {
-                VariantInit(&mut variant);
+                let mut variant = VariantInit();
                 if prop_bag
-                    .Read(&"DevicePath".into(), &mut variant, InParam::null())
+                    .Read(&"DevicePath".into(), &mut variant, None)
                     .is_ok()
                 {
                     let path = variant.Anonymous.Anonymous.Anonymous.bstrVal.to_string();
@@ -288,9 +282,10 @@ pub fn capture_devices() -> Result<impl Iterator<Item = DirectShowCaptureDevice>
 
             // get pins
             let mut resolution = HashSet::new();
+            let mut pin_info = PIN_INFO::default();
             for pin in PinIterator::enumerate_pins(&moniker)? {
                 // filter output pins
-                let pin_info = unsafe { pin.QueryPinInfo() }?;
+                unsafe { pin.QueryPinInfo(&mut pin_info as *mut _) }?;
                 if pin_info.dir != PINDIR_OUTPUT {
                     continue;
                 }

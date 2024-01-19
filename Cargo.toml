@@ -8,11 +8,12 @@ authors = ["忘忧北萱草 <wybxc@qq.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-windows = { version = "0.43.0", optional = true, features = [
+windows = { version = "0.52.0", optional = true, features = [
     "Win32_Foundation",
     "Win32_System_Ole",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
     "Win32_Graphics_Gdi",
     "Win32_Media_MediaFoundation",
     "Win32_Media_DirectShow",
